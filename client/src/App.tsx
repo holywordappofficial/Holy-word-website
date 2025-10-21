@@ -3,13 +3,14 @@ import { BrowserRouter as Router, Routes, Route, useLocation, Link } from 'react
 import './App.css';
 
 interface Verse {
-  Count: number;
-  "English verse": string;
-  "English reference": string;
-  "Telugu verse part 1": string;
-  "Telugu verse part 2": string;
-  "Telugu reference": string;
-  "image reference for background": string;
+  id: number;
+  english: string;
+  englishReference: string;
+  telugu: string;
+  teluguReference: string;
+  backgroundImage: string;
+  dayNumber?: number;
+  totalVerses?: number;
 }
 
 // Navbar Component
@@ -156,28 +157,19 @@ function HomePage() {
       setLoading(true);
       setError(null);
       
-      // Calculate days since a fixed start date (today is day 1)
-      const startDate = new Date('2025-10-20'); // Fixed start date
-      const today = new Date();
-      const timeDiff = today.getTime() - startDate.getTime();
-      const daysSinceStart = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1; // +1 to start from day 1
+      // Use environment variable for API URL, fallback to localhost for development
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/api/daily-verse`);
       
-      // Fetch verses data
-      const response = await fetch('/daily verse.json');
       if (!response.ok) {
-        throw new Error('Failed to fetch verses');
+        throw new Error(`Failed to fetch daily verse: ${response.status}`);
       }
       
-      const verses: Verse[] = await response.json();
+      const todaysVerse: Verse = await response.json();
       
-      if (!verses || verses.length === 0) {
-        throw new Error('No verses found');
+      if (!todaysVerse) {
+        throw new Error('No verse found for today');
       }
-      
-      // Use modulo to cycle through verses (loops back to start when all verses are shown)
-      // Day 1 = verse 0, Day 2 = verse 1, etc.
-      const verseIndex = (daysSinceStart - 1) % verses.length;
-      const todaysVerse = verses[verseIndex];
       
       setVerse(todaysVerse);
     } catch (err) {
@@ -246,10 +238,10 @@ function HomePage() {
                 <div className="text-center">
                   <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold text-blue-200 mb-4 sm:mb-6">English</h2>
                   <blockquote className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-white italic leading-relaxed font-light drop-shadow-lg">
-                    "{verse["English verse"]}"
+                    "{verse.english}"
                   </blockquote>
                   <p className="text-base sm:text-lg md:text-xl font-medium bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent mt-3 sm:mt-4">
-                    {verse["English reference"]}
+                    {verse.englishReference}
                   </p>
                 </div>
               </div>
@@ -259,10 +251,10 @@ function HomePage() {
                 <div className="text-center">
                   <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold text-blue-200 mb-4 sm:mb-6">తెలుగు</h2>
                   <blockquote className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-white italic leading-relaxed font-light drop-shadow-lg">
-                    "{verse["Telugu verse part 1"]} {verse["Telugu verse part 2"]}"
+                    "{verse.telugu}"
                   </blockquote>
                   <p className="text-base sm:text-lg md:text-xl font-medium bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent mt-3 sm:mt-4">
-                    {verse["Telugu reference"]}
+                    {verse.teluguReference}
                   </p>
                 </div>
               </div>
@@ -502,7 +494,10 @@ function DevelopersPage() {
                 </div>
                 <p className="text-blue-200 text-sm sm:text-base mb-4">Returns all available Bible verses with metadata and usage information</p>
                 <button
-                  onClick={() => window.open('/api/verses', '_blank')}
+                  onClick={() => {
+                    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+                    window.open(`${apiUrl}/api/verses`, '_blank');
+                  }}
                   className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium text-sm"
                 >
                   Try API
@@ -520,7 +515,10 @@ function DevelopersPage() {
                 </div>
                 <p className="text-blue-200 text-sm sm:text-base mb-4">Returns today's verse based on the current date, automatically cycles through all verses</p>
                 <button
-                  onClick={() => window.open('/api/daily-verse', '_blank')}
+                  onClick={() => {
+                    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+                    window.open(`${apiUrl}/api/daily-verse`, '_blank');
+                  }}
                   className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium text-sm"
                 >
                   Try API
@@ -614,103 +612,6 @@ function DevelopersPage() {
   );
 }
 
-// API Routes Component - Returns JSON only
-function ApiRoutes() {
-  const location = useLocation();
-  const [verses, setVerses] = useState<Verse[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchVerses();
-  }, []);
-
-  const fetchVerses = async () => {
-    try {
-      const response = await fetch('/daily verse.json');
-      const data = await response.json();
-      setVerses(data);
-    } catch (error) {
-      console.error('Error fetching verses:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getDailyVerse = () => {
-    if (verses.length === 0) return null;
-    
-    // Calculate days since a fixed start date (today is day 1)
-    const startDate = new Date('2025-10-20'); // Fixed start date
-    const today = new Date();
-    const timeDiff = today.getTime() - startDate.getTime();
-    const daysSinceStart = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1; // +1 to start from day 1
-    
-    // Use modulo to cycle through verses (loops back to start when all verses are shown)
-    // Day 1 = verse 0, Day 2 = verse 1, etc.
-    const verseIndex = (daysSinceStart - 1) % verses.length;
-    
-    return verses[verseIndex];
-  };
-
-  // API Route: /api/verses - Return JSON only
-  if (location.pathname === '/api/verses') {
-    if (loading) {
-      return <div>Loading...</div>;
-    }
-    
-    // Format verses for API response
-    const formattedVerses = verses.map(verse => ({
-      id: verse.Count,
-      english: verse["English verse"],
-      englishReference: verse["English reference"],
-      telugu: `${verse["Telugu verse part 1"]} ${verse["Telugu verse part 2"]}`,
-      teluguReference: verse["Telugu reference"],
-      backgroundImage: verse["image reference for background"]
-    }));
-    
-    const response = {
-      totalVerses: verses.length,
-      verses: formattedVerses,
-      usage: {
-        dailyVerse: '/api/daily-verse',
-        allVerses: '/api/verses',
-        documentation: 'This API provides free access to Bible verses in English and Telugu'
-      }
-    };
-    
-    // Return JSON as plain text
-    return <pre style={{ color: 'white', backgroundColor: 'transparent', margin: 0, padding: '20px' }}>{JSON.stringify(response, null, 2)}</pre>;
-  }
-
-  // API Route: /api/daily-verse - Return JSON only
-  if (location.pathname === '/api/daily-verse') {
-    if (loading) {
-      return <div>Loading...</div>;
-    }
-    
-    const dailyVerse = getDailyVerse();
-    
-    if (!dailyVerse) {
-      return <pre style={{ color: 'white', backgroundColor: 'transparent', margin: 0, padding: '20px' }}>{JSON.stringify({ error: 'No verses found' }, null, 2)}</pre>;
-    }
-
-    // Format daily verse for API response
-    const formattedDailyVerse = {
-      id: dailyVerse.Count,
-      english: dailyVerse["English verse"],
-      englishReference: dailyVerse["English reference"],
-      telugu: `${dailyVerse["Telugu verse part 1"]} ${dailyVerse["Telugu verse part 2"]}`,
-      teluguReference: dailyVerse["Telugu reference"],
-      backgroundImage: dailyVerse["image reference for background"]
-    };
-
-    // Return JSON as plain text
-    return <pre style={{ color: 'white', backgroundColor: 'transparent', margin: 0, padding: '20px' }}>{JSON.stringify(formattedDailyVerse, null, 2)}</pre>;
-  }
-
-  return null;
-}
-
 // Main App Component
 function App() {
   return (
@@ -724,18 +625,13 @@ function App() {
 function AppContent() {
   const location = useLocation();
   
-  // Don't show navbar for API routes
-  const isApiRoute = location.pathname.startsWith('/api/');
-  
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
-      {!isApiRoute && <Navbar />}
+      <Navbar />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/developers" element={<DevelopersPage />} />
-        <Route path="/api/verses" element={<ApiRoutes />} />
-        <Route path="/api/daily-verse" element={<ApiRoutes />} />
       </Routes>
     </div>
   );
