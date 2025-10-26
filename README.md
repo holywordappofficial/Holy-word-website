@@ -50,32 +50,52 @@ npm start
 
 ## Deployment
 
-### 🚀 **Quick Deploy Guide**
+### 🚀 **Recommended Setup**
 
-Both **Client** and **Server** can be deployed separately from this same repository!
+- **Frontend (Client)**: Deploy to **Netlify** (Already hosted ✅)
+- **Backend (Server)**: Deploy to **Vercel** (Recommended for Node.js APIs)
 
-**📖 Full Deployment Guide:** See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
+### 📋 **Step-by-Step Deployment**
 
-### Frontend (Client)
-Deploy the `client/` folder to:
-- **Netlify** (Recommended) - Auto-configured with `netlify.toml`
-- **Vercel** - Auto-configured with `vercel.json`
-- GitHub Pages
+#### **1. Deploy Server to Vercel** 🆕
 
-### Backend (Server)
-Deploy the `server/` folder to:
-- **Railway** (Recommended) - Auto-configured with `railway.json`
-- **Render** - Auto-configured with `render.yaml`
-- **Heroku** - Auto-configured with `Procfile`
+**📖 Detailed Guide:** See [server/VERCEL_DEPLOYMENT.md](./server/VERCEL_DEPLOYMENT.md)
+
+**Quick Steps:**
+1. Go to https://vercel.com and sign in with GitHub
+2. Click **"Add New Project"**
+3. Import repository: `holywordappofficial/Holy-word-website`
+4. Configure:
+   - **Root Directory:** `server`
+   - **Framework Preset:** Other
+   - **Build Command:** (leave empty)
+   - **Output Directory:** (leave empty)
+5. Click **"Deploy"**
+6. Copy your API URL (e.g., `https://holy-word-api.vercel.app`)
+
+#### **2. Update Frontend on Netlify** 🔄
+
+**📖 Detailed Guide:** See [client/NETLIFY_DEPLOYMENT.md](./client/NETLIFY_DEPLOYMENT.md)
+
+**Quick Steps:**
+1. Go to Netlify Dashboard → Your site
+2. **Site settings** → **Environment variables**
+3. Add/Update:
+   - **Key:** `REACT_APP_API_URL`
+   - **Value:** `https://your-vercel-api.vercel.app` (from step 1)
+4. **Deploys** → **Trigger deploy** → **Deploy site**
 
 ### ⚙️ **Environment Variables**
 
-**Frontend:** Set `REACT_APP_API_URL` to your server URL
-**Backend:** Auto-configured, no env vars needed
+**Frontend (Netlify):**
+- `REACT_APP_API_URL` = Your Vercel API URL
+
+**Backend (Vercel):**
+- No environment variables needed (auto-configured)
 
 ### 📝 **Example URLs After Deployment**
-- Frontend: `https://holy-word.netlify.app`
-- Backend: `https://holy-word-api.railway.app`
+- Frontend: `https://holyword.netlify.app` ✅ (Already live)
+- Backend: `https://holy-word-api.vercel.app` (After Vercel deployment)
 
 ## License
 
