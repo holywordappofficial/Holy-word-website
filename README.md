@@ -50,18 +50,32 @@ npm start
 
 ## Deployment
 
-### Frontend
-Deploy the `client` folder to:
-- Netlify
-- Vercel
+### 🚀 **Quick Deploy Guide**
+
+Both **Client** and **Server** can be deployed separately from this same repository!
+
+**📖 Full Deployment Guide:** See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
+
+### Frontend (Client)
+Deploy the `client/` folder to:
+- **Netlify** (Recommended) - Auto-configured with `netlify.toml`
+- **Vercel** - Auto-configured with `vercel.json`
 - GitHub Pages
 
-### Backend
-Deploy the `server` folder to:
-- Railway
-- Render
-- Heroku
-- Vercel
+### Backend (Server)
+Deploy the `server/` folder to:
+- **Railway** (Recommended) - Auto-configured with `railway.json`
+- **Render** - Auto-configured with `render.yaml`
+- **Heroku** - Auto-configured with `Procfile`
+
+### ⚙️ **Environment Variables**
+
+**Frontend:** Set `REACT_APP_API_URL` to your server URL
+**Backend:** Auto-configured, no env vars needed
+
+### 📝 **Example URLs After Deployment**
+- Frontend: `https://holy-word.netlify.app`
+- Backend: `https://holy-word-api.railway.app`
 
 ## License
 
