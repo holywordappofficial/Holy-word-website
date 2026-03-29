@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { put } from '@vercel/blob';
 
 export async function POST(req: Request) {
   try {
@@ -23,14 +24,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'File is not valid JSON' }, { status: 400 });
     }
 
-    const dataDir = path.join(process.cwd(), 'data', 'themes');
-    const filePath = path.join(dataDir, file.name);
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return NextResponse.json({ success: false, error: 'Missing BLOB_READ_WRITE_TOKEN on server' }, { status: 500 });
+    }
 
-    await fs.writeFile(filePath, buffer);
+    const blob = await put(`themes/${file.name}`, file, {
+      access: 'public',
+      contentType: 'application/json',
+      addRandomSuffix: false // We explicitly overwrite previous files of the same name
+    });
 
     return NextResponse.json({ 
       success: true, 
-      message: `Theme ${file.name} uploaded successfully via API!` 
+      message: `Theme uploaded successfully to Vercel Blob!`,
+      url: blob.url
     });
 
   } catch (error: any) {

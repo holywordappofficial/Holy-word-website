@@ -8,10 +8,11 @@ export function middleware(req: NextRequest) {
   if (url.pathname.startsWith('/admin') || url.pathname.startsWith('/api/admin')) {
     
     // Check for API Key (for external app integration)
+    // Both values must be non-empty strings to prevent accidental open access
     const apiKey = req.headers.get('X-API-Key');
     const validApiKey = process.env.ADMIN_API_KEY;
 
-    if (apiKey === validApiKey) {
+    if (apiKey && validApiKey && apiKey === validApiKey) {
       return NextResponse.next();
     }
 

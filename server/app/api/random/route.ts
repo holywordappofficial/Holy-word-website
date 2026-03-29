@@ -1,28 +1,22 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import { ensureThemeDir } from '@/lib/init';
+import { getThemeLocators, fetchThemeContent } from '@/lib/themes';
 
 export async function GET() {
   try {
-    const dataDir = await ensureThemeDir();
-    const files = await fs.readdir(dataDir);
+    const locators = await getThemeLocators();
     
-    // Filter to only valid JSON files
-    const themeFiles = files.filter(file => file.endsWith('.json'));
-    
-    if (themeFiles.length === 0) {
+    if (locators.length === 0) {
       return NextResponse.json({ error: 'No themes found in database.' }, { status: 404 });
     }
 
     // Attempt to find a valid random verse, up to 10 retries if themes are corrupted
     for (let i = 0; i < 10; i++) {
-        const randomFileName = themeFiles[Math.floor(Math.random() * themeFiles.length)];
-        const filePath = path.join(dataDir, randomFileName);
+        const randomLocator = locators[Math.floor(Math.random() * locators.length)];
         
         try {
-            const fileContent = await fs.readFile(filePath, 'utf-8');
-            const parsed = JSON.parse(fileContent);
+            const parsed = await fetchThemeContent(randomLocator);
+
+            if (!parsed) continue;
 
             const verses = parsed.verses || [];
             if (!parsed.theme || !Array.isArray(verses) || verses.length === 0) {
@@ -32,13 +26,13 @@ export async function GET() {
             const randomVerse = verses[Math.floor(Math.random() * verses.length)];
             return NextResponse.json({
                 themeInfo: {
-                    id: randomFileName.replace('.json', ''),
+                    id: randomLocator.id,
                     theme: parsed.theme
                 },
                 verse: randomVerse
             });
         } catch (fileErr) {
-            console.warn(`Random API: Skipping corrupted theme file ${randomFileName}`, fileErr);
+            console.warn(`Random API: Skipping corrupted theme file ${randomLocator.fileName}`, fileErr);
             continue;
         }
     }

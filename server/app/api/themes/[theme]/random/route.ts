@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { getThemeLocators, fetchThemeContent } from '@/lib/themes';
 
 export async function GET(
   request: Request,
@@ -8,17 +7,20 @@ export async function GET(
 ) {
   try {
     const { theme: themeId } = await params;
-    const fileName = themeId.endsWith('.json') ? themeId : `${themeId}.json`;
-    const dataDir = path.join(process.cwd(), 'data', 'themes');
-    const filePath = path.join(dataDir, fileName);
+    const cleanId = themeId.replace('.json', '');
 
-    // Prevent directory traversal
-    if (!filePath.startsWith(dataDir)) {
-      return NextResponse.json({ error: 'Invalid theme path' }, { status: 400 });
+    const locators = await getThemeLocators();
+    const locator = locators.find(loc => loc.id === cleanId);
+
+    if (!locator) {
+      return NextResponse.json({ error: 'Theme not found' }, { status: 404 });
     }
 
-    const fileContent = await fs.readFile(filePath, 'utf-8');
-    const parsed = JSON.parse(fileContent);
+    const parsed = await fetchThemeContent(locator);
+
+    if (!parsed) {
+      return NextResponse.json({ error: 'Failed to load theme data' }, { status: 500 });
+    }
 
     const verses = parsed.verses || [];
     
@@ -31,7 +33,7 @@ export async function GET(
 
     return NextResponse.json({
       themeInfo: {
-        id: fileName.replace('.json', ''),
+        id: locator.id,
         theme: parsed.theme
       },
       verse: randomVerse

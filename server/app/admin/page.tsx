@@ -93,6 +93,29 @@ export default function AdminPage() {
     }
   };
 
+  const compressToWebP = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0);
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Compression failed'));
+          }, 'image/webp', 0.8); // 80% quality is perfect balance
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleBulkUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setBulkStatus({ type: 'loading', progress: 0 });
@@ -104,20 +127,69 @@ export default function AdminPage() {
       setBulkStatus({ type: 'error', message: `Found ${invalidFiles.length} invalid file(s). Only images allowed.`, progress: 0 });
       return;
     }
-    
-    try {
-      const result = await uploadWithProgress('/api/admin/images/bulk-sync', formData, (progress) => {
-        setBulkStatus(prev => ({ ...prev, progress }));
-      });
 
-      if (result.success) {
-        setBulkStatus({ type: 'success', message: 'Bulk update successful!', count: result.count, progress: 100 });
+    const patchedLinks: { fileName: string, url: string }[] = [];
+    const total = files.length;
+    let completedCount = 0;
+
+    try {
+      // Concurrency: 5 parallel uploads at a time
+      const CONCURRENCY = 5;
+      const chunks = [];
+      for (let i = 0; i < files.length; i += CONCURRENCY) {
+        chunks.push(files.slice(i, i + CONCURRENCY));
+      }
+
+      for (const chunk of chunks) {
+        await Promise.all(chunk.map(async (file) => {
+          // 1. Compress to WebP
+          const compressedBlob = await compressToWebP(file);
+          const webpFileName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+          
+          const singleFormData = new FormData();
+          // Keep original filename or webp? We'll use webp for storage efficiency
+          singleFormData.append('file', compressedBlob, webpFileName);
+
+          const result = await uploadWithProgress('/api/admin/images/upload', singleFormData, (p) => {
+             // We don't track per-file sub-progress in parallel for UX simplicity
+          });
+
+          if (result.success) {
+            // Very important: the bulk-sync uses the ORIGINAL filename to match JSON 
+            // but we need to pass the new Blob URL
+            patchedLinks.push({ fileName: file.name, url: result.url });
+            completedCount++;
+            const overallProgress = Math.round((completedCount / total) * 100);
+            setBulkStatus(prev => ({ ...prev, progress: overallProgress }));
+          } else {
+            throw new Error(`Failed to upload ${file.name}: ${result.error}`);
+          }
+        }));
+      }
+
+      // Step 2: Apply the sync to JSON themes
+      setBulkStatus(prev => ({ ...prev, progress: 100 }));
+      const syncRes = await fetch('/api/admin/images/apply-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patchedLinks })
+      });
+      const syncResult = await syncRes.json();
+
+      if (syncResult.success) {
+        setBulkStatus({ 
+          type: 'success', 
+          message: `Successfully compressed, uploaded ${total} images and updated ${syncResult.themesUpdatedCount} themes!`, 
+          count: total, 
+          progress: 100 
+        });
         (e.target as HTMLFormElement).reset();
       } else {
-        setBulkStatus({ type: 'error', message: result.error, progress: 0 });
+        setBulkStatus({ type: 'error', message: syncResult.error || 'Failed to sync themes', progress: 0 });
       }
+
     } catch (err: any) {
-      setBulkStatus({ type: 'error', message: err.error || 'Unknown error occurred', progress: 0 });
+      setBulkStatus({ type: 'error', message: err.message || 'Unknown error occurred', progress: 0 });
     }
   };
 

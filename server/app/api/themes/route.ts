@@ -1,34 +1,32 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import { ensureThemeDir } from '@/lib/init';
+import { getThemeLocators, fetchThemeContent } from '@/lib/themes';
 
 export async function GET() {
   try {
-    const dataDir = await ensureThemeDir();
-    const files = await fs.readdir(dataDir);
+    const locators = await getThemeLocators();
     
-    const themeFiles = files.filter(file => file.endsWith('.json'));
-    
-    const themePromises = themeFiles.map(async (file) => {
+    if (locators.length === 0) {
+      return NextResponse.json({ totalThemes: 0, themes: [] });
+    }
+
+    const themePromises = locators.map(async (locator) => {
       try {
-        const filePath = path.join(dataDir, file);
-        const fileContent = await fs.readFile(filePath, 'utf-8');
-        const parsed = JSON.parse(fileContent);
+        const parsed = await fetchThemeContent(locator);
         
         // Robust structural validation
-        if (!parsed.theme || !Array.isArray(parsed.verses)) {
+        if (!parsed || !parsed.theme || !Array.isArray(parsed.verses)) {
           return null;
         }
 
         return {
-          id: file.replace('.json', ''),
+          id: locator.id,
           theme: parsed.theme,
           totalVerses: parsed.verses.length,
-          fileName: file
+          fileName: locator.fileName,
+          isBlob: locator.isBlob
         };
       } catch (err) {
-        console.warn(`Skipping invalid or corrupt theme file: ${file}`, err);
+        console.warn(`Skipping invalid or corrupt theme file: ${locator.fileName}`, err);
         return null;
       }
     });

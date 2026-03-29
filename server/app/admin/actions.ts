@@ -118,12 +118,17 @@ export async function loginAdmin(formData: FormData) {
   const username = formData.get('userName') as string;
   const password = formData.get('password') as string;
 
-  const validUser = process.env.ADMIN_USER || 'admin1';
-  const validPass = process.env.ADMIN_PASS || 'holycanvas1';
+  const validUser = process.env.ADMIN_USER;
+  const validPass = process.env.ADMIN_PASS;
+  const token = process.env.ADMIN_SESSION_TOKEN;
+
+  // Reject immediately if any required env vars are not configured
+  if (!validUser || !validPass || !token) {
+    console.error('[Auth] ADMIN_USER, ADMIN_PASS, or ADMIN_SESSION_TOKEN is not set in environment variables.');
+    return { success: false, error: 'Server authentication is not configured. Contact the administrator.' };
+  }
 
   if (username === validUser && password === validPass) {
-    const token = process.env.ADMIN_SESSION_TOKEN || 'holy-canvas-secret-session';
-    
     (await cookies()).set('admin_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -135,7 +140,7 @@ export async function loginAdmin(formData: FormData) {
     return { success: true };
   }
 
-  return { success: false, error: 'Invalid Credentials' };
+  return { success: false, error: 'Invalid credentials' };
 }
 
 export async function logoutAdmin() {
