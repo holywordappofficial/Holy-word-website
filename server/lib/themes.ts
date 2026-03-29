@@ -57,14 +57,18 @@ export async function getThemeLocators(): Promise<ThemeLocator[]> {
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       let cursor: string | undefined;
+      let foundInFolder = false;
+
+      // 2a. Try themes/ prefix
       while (true) {
         const blobList = await list({ prefix: 'themes/', limit: 1000, ...(cursor ? { cursor } : {}) });
         for (const blob of blobList.blobs) {
           if (blob.pathname.endsWith('.json')) {
-            const fileName = blob.pathname.replace('themes/', '');
+            foundInFolder = true;
+            const fileName = blob.pathname.split('/').pop() || '';
             locators.set(fileName, { 
               id: fileName.replace('.json', ''), 
-              fileName, 
+              fileName: blob.pathname, // Store the full path for fetching
               isBlob: true, 
               url: blob.url 
             });
@@ -72,6 +76,27 @@ export async function getThemeLocators(): Promise<ThemeLocator[]> {
         }
         if (!blobList.cursor) break;
         cursor = blobList.cursor;
+      }
+
+      // 2b. If nothing found in themes/, scan Root (exclude images/)
+      if (!foundInFolder) {
+        cursor = undefined;
+        while (true) {
+          const blobList = await list({ limit: 1000, ...(cursor ? { cursor } : {}) });
+          for (const blob of blobList.blobs) {
+            if (blob.pathname.endsWith('.json') && !blob.pathname.startsWith('images/')) {
+              const fileName = blob.pathname.split('/').pop() || '';
+              locators.set(fileName, { 
+                id: fileName.replace('.json', ''), 
+                fileName: blob.pathname, 
+                isBlob: true, 
+                url: blob.url 
+              });
+            }
+          }
+          if (!blobList.cursor) break;
+          cursor = blobList.cursor;
+        }
       }
     } catch (e) {
       console.warn('[themes] Error listing Vercel Blob themes:', e);
