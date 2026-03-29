@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
 import { put } from '@vercel/blob';
+import { invalidateThemeCache } from '@/lib/themes';
 
 export async function POST(req: Request) {
   try {
@@ -31,8 +30,11 @@ export async function POST(req: Request) {
     const blob = await put(`themes/${file.name}`, file, {
       access: 'public',
       contentType: 'application/json',
-      addRandomSuffix: false // We explicitly overwrite previous files of the same name
+      addRandomSuffix: false
     });
+
+    // Invalidate cache so the next apply-sync reads the fresh uploaded JSON
+    invalidateThemeCache();
 
     return NextResponse.json({ 
       success: true, 

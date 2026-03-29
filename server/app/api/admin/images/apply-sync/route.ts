@@ -18,32 +18,40 @@ export async function POST(req: Request) {
     const locators = await getThemeLocators();
     let themesUpdatedCount = 0;
 
-    for (const locator of locators) {
+    // Always work with fresh data during sync — bypass any in-memory cache
+    invalidateThemeCache();
+    const freshLocators = await getThemeLocators();
+
+    for (const locator of freshLocators) {
       try {
-        const parsed = await fetchThemeContent(locator);
+        // Force fresh fetch from Blob (bypass cache for sync operations)
+        const locatorCopy = { ...locator };
+        const parsed = await fetchThemeContent(locatorCopy);
         if (!parsed || !Array.isArray(parsed.verses)) continue;
 
         let themeWasUpdated = false;
 
         for (const verse of parsed.verses) {
-          for (const patch of patchedLinks) {
-            // Strip extension from uploaded filename for flexible matching
-            const baseName = patch.fileName.replace(/\.[^/.]+$/, '').toLowerCase();
+          // Only process verses that have a verseimagelink field (even if it's just a filename)
+          if (!verse.verseimagelink) continue;
 
-            // Case 1: verseimagelink already exists and contains the filename
-            if (verse.verseimagelink && verse.verseimagelink.toLowerCase().includes(baseName)) {
-              verse.verseimagelink = patch.url;
-              themeWasUpdated = true;
-              break;
-            }
-            // Case 2: verse has no image link yet — try matching by verse number or image field
-            // verse may have an "image" field or the filename pattern may match "verse_N_image"
-            const verseNum = verse.verseNumber || verse.id || '';
-            if (!verse.verseimagelink && baseName.includes(String(verseNum))) {
-              verse.verseimagelink = patch.url;
-              themeWasUpdated = true;
-              break;
-            }
+          // Get just the filename part from the existing link (strip any path or old URL)
+          const existingLink = verse.verseimagelink as string;
+          const existingFileName = existingLink.split('/').pop() || existingLink;
+          // Strip extension for comparison
+          const existingBase = existingFileName.replace(/\.[^/.]+$/, '').toLowerCase();
+
+          // Find the uploaded image that matches this verse's image filename
+          const matchedPatch = patchedLinks.find(patch => {
+            const uploadedBase = patch.fileName.replace(/\.[^/.]+$/, '').toLowerCase();
+            // Match: uploaded "Love_1_image_1" vs existing "Love_1_image_1"
+            return uploadedBase === existingBase || existingBase.endsWith(uploadedBase) || uploadedBase.endsWith(existingBase);
+          });
+
+          if (matchedPatch) {
+            verse.verseimagelink = matchedPatch.url;
+            themeWasUpdated = true;
+            console.log(`[apply-sync] Matched: ${existingFileName} → ${matchedPatch.url}`);
           }
         }
 
@@ -55,7 +63,9 @@ export async function POST(req: Request) {
             addRandomSuffix: false
           });
           themesUpdatedCount++;
-          console.log(`[apply-sync] Updated theme: ${locator.fileName}`);
+          console.log(`[apply-sync] Saved updated theme: ${locator.fileName}`);
+        } else {
+          console.log(`[apply-sync] No matches found in theme: ${locator.fileName}`);
         }
       } catch (err) {
         console.error(`[apply-sync] Failed to patch theme ${locator.fileName}`, err);
