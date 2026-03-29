@@ -1,6 +1,5 @@
 'use client';
 
-import { logoutAdmin } from '../actions';
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { useState } from 'react';
@@ -11,7 +10,7 @@ export default function LogoutBtn() {
 
   async function handleLogout() {
     setLoading(true);
-    await logoutAdmin();
+    await fetch('/api/admin/auth/logout', { method: 'POST' });
     router.push('/login');
     router.refresh();
   }

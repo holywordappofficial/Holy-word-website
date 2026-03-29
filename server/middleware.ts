@@ -17,10 +17,12 @@ export function middleware(req: NextRequest) {
     }
 
     // Check for Session Cookie (for web dashboard)
+    // CRITICAL: Both must be non-empty. If ADMIN_SESSION_TOKEN env var is missing,
+    // validToken is undefined and `undefined === undefined` would allow EVERYONE through.
     const sessionToken = req.cookies.get('admin_session')?.value;
     const validToken = process.env.ADMIN_SESSION_TOKEN;
 
-    if (sessionToken === validToken) {
+    if (sessionToken && validToken && sessionToken === validToken) {
       return NextResponse.next();
     }
 

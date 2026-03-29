@@ -2,7 +2,6 @@
 
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loginAdmin } from '../admin/actions';
 import { Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 
 function LoginForm() {
@@ -19,13 +18,27 @@ function LoginForm() {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const result = await loginAdmin(formData);
+    
+    try {
+      const res = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formData.get('userName'),
+          password: formData.get('password'),
+        }),
+      });
+      const result = await res.json();
 
-    if (result.success) {
-      router.push(from);
-      router.refresh();
-    } else {
-      setError(result.error || 'Authentication failed');
+      if (result.success) {
+        router.push(from);
+        router.refresh();
+      } else {
+        setError(result.error || 'Authentication failed');
+        setLoading(false);
+      }
+    } catch {
+      setError('Network error. Please try again.');
       setLoading(false);
     }
   }

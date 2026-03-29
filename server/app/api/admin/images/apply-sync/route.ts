@@ -26,15 +26,23 @@ export async function POST(req: Request) {
         let themeWasUpdated = false;
 
         for (const verse of parsed.verses) {
-          if (verse.verseimagelink) {
-            for (const patch of patchedLinks) {
-              // Match by original filename (before WebP conversion)
-              const baseName = patch.fileName.replace(/\.[^/.]+$/, '');
-              if (verse.verseimagelink.includes(baseName)) {
-                verse.verseimagelink = patch.url;
-                themeWasUpdated = true;
-                break;
-              }
+          for (const patch of patchedLinks) {
+            // Strip extension from uploaded filename for flexible matching
+            const baseName = patch.fileName.replace(/\.[^/.]+$/, '').toLowerCase();
+
+            // Case 1: verseimagelink already exists and contains the filename
+            if (verse.verseimagelink && verse.verseimagelink.toLowerCase().includes(baseName)) {
+              verse.verseimagelink = patch.url;
+              themeWasUpdated = true;
+              break;
+            }
+            // Case 2: verse has no image link yet — try matching by verse number or image field
+            // verse may have an "image" field or the filename pattern may match "verse_N_image"
+            const verseNum = verse.verseNumber || verse.id || '';
+            if (!verse.verseimagelink && baseName.includes(String(verseNum))) {
+              verse.verseimagelink = patch.url;
+              themeWasUpdated = true;
+              break;
             }
           }
         }
@@ -47,6 +55,7 @@ export async function POST(req: Request) {
             addRandomSuffix: false
           });
           themesUpdatedCount++;
+          console.log(`[apply-sync] Updated theme: ${locator.fileName}`);
         }
       } catch (err) {
         console.error(`[apply-sync] Failed to patch theme ${locator.fileName}`, err);
