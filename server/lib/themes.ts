@@ -61,7 +61,7 @@ export async function getThemeLocators(): Promise<ThemeLocator[]> {
 
       // 2a. Try themes/ prefix
       while (true) {
-        const blobList = await list({ prefix: 'themes/', limit: 1000, ...(cursor ? { cursor } : {}) });
+        const blobList: any = await list({ prefix: 'themes/', limit: 1000, ...(cursor ? { cursor } : {}) });
         for (const blob of blobList.blobs) {
           if (blob.pathname.endsWith('.json')) {
             foundInFolder = true;
@@ -82,7 +82,7 @@ export async function getThemeLocators(): Promise<ThemeLocator[]> {
       if (!foundInFolder) {
         cursor = undefined;
         while (true) {
-          const blobList = await list({ limit: 1000, ...(cursor ? { cursor } : {}) });
+          const blobList: any = await list({ limit: 1000, ...(cursor ? { cursor } : {}) });
           for (const blob of blobList.blobs) {
             if (blob.pathname.endsWith('.json') && !blob.pathname.startsWith('images/')) {
               const fileName = blob.pathname.split('/').pop() || '';

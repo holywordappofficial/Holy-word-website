@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     // 1a. Scan blobs. Try 'images/' prefix first, fallback to root if empty
     let cursor: string | undefined;
     while (true) {
-      const blobList = await list({ prefix: 'images/', limit: 1000, ...(cursor ? { cursor } : {}) });
+      const blobList: any = await list({ prefix: 'images/', limit: 1000, ...(cursor ? { cursor } : {}) });
       for (const blob of blobList.blobs) {
         const fileName = blob.pathname.split('/').pop() || '';
         const base = fileName.replace(/\.[^/.]+$/, '').toLowerCase();
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       debug.push("No images in 'images/' folder, checking root...");
       cursor = undefined;
       while (true) {
-        const blobList = await list({ limit: 1000, ...(cursor ? { cursor } : {}) });
+        const blobList: any = await list({ limit: 1000, ...(cursor ? { cursor } : {}) });
         for (const blob of blobList.blobs) {
           // Skip known non-image patterns if you want, or just check extension
           if (blob.pathname.includes('.') && !blob.pathname.endsWith('.json')) {
