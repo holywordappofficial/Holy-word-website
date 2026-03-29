@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Lock, User, AlertCircle, Loader2 } from 'lucide-react';
+import { Lock, User, AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
 
 function LoginForm() {
   const router = useRouter();
@@ -31,8 +31,8 @@ function LoginForm() {
       const result = await res.json();
 
       if (result.success) {
-        router.push(from);
-        router.refresh();
+        // Hard redirect — forces browser to reload and send new cookie to middleware
+        window.location.href = from;
       } else {
         setError(result.error || 'Authentication failed');
         setLoading(false);
@@ -102,6 +102,16 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-6 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-neutral-950 to-neutral-950">
       <div className="w-full max-w-md space-y-8">
+
+        {/* Back to Home */}
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors group"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          Back to Home
+        </a>
+
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 mb-6 shadow-2xl shadow-indigo-500/10">
             <Lock className="w-10 h-10 text-indigo-400" />

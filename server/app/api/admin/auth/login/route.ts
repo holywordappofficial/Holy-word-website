@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   try {
@@ -10,9 +9,9 @@ export async function POST(req: Request) {
     const token = process.env.ADMIN_SESSION_TOKEN;
 
     if (!validUser || !validPass || !token) {
-      console.error('[Auth] Missing ADMIN_USER, ADMIN_PASS, or ADMIN_SESSION_TOKEN env vars.');
+      console.error('[Auth] Missing required env vars: ADMIN_USER, ADMIN_PASS, or ADMIN_SESSION_TOKEN');
       return NextResponse.json(
-        { success: false, error: 'Server authentication is not configured. Add env vars to Vercel.' },
+        { success: false, error: 'Server authentication is not configured.' },
         { status: 500 }
       );
     }
@@ -21,7 +20,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Invalid credentials' }, { status: 401 });
     }
 
-    (await cookies()).set('admin_session', token, {
+    // Use NextResponse.cookies — NOT cookies() from next/headers inside Route Handlers
+    const response = NextResponse.json({ success: true });
+    response.cookies.set('admin_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -29,7 +30,8 @@ export async function POST(req: Request) {
       maxAge: 60 * 60 * 24 * 7, // 1 week
     });
 
-    return NextResponse.json({ success: true });
+    return response;
+
   } catch {
     return NextResponse.json({ success: false, error: 'Invalid request body' }, { status: 400 });
   }
