@@ -1,57 +1,82 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { list, put } from '@vercel/blob';
 import { getThemeLocators, fetchThemeContent, invalidateThemeCache } from '@/lib/themes';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const patchedLinks: { fileName: string; url: string }[] = body.patchedLinks;
-
-    if (!patchedLinks || !Array.isArray(patchedLinks) || patchedLinks.length === 0) {
-      return NextResponse.json({ success: false, error: 'No patched links provided' }, { status: 400 });
-    }
+    // patchedLinks from the current upload session (may be empty for a manual re-sync)
+    const patchedLinks: { fileName: string; url: string }[] = body.patchedLinks ?? [];
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return NextResponse.json({ success: false, error: 'Missing BLOB_READ_WRITE_TOKEN on server' }, { status: 500 });
     }
 
+    // ─── Step 1: Build a COMPLETE image map ─────────────────────────────────
+    // Combines current batch + ALL previously uploaded images in the images/ folder
+    // Key: base filename (no extension, lowercase) e.g. "love_60_image_1"
+    // Value: correct Vercel Blob URL
+    const imageMap = new Map<string, string>();
+
+    // 1a. Scan ALL existing blobs under images/ — catches images from any previous session
+    let cursor: string | undefined;
+    while (true) {
+      const blobList = await list({ prefix: 'images/', limit: 1000, ...(cursor ? { cursor } : {}) });
+      for (const blob of blobList.blobs) {
+        const fileName = blob.pathname.split('/').pop() || '';
+        const base = fileName.replace(/\.[^/.]+$/, '').toLowerCase();
+        if (base) imageMap.set(base, blob.url);
+      }
+      if (!blobList.cursor) break;
+      cursor = blobList.cursor;
+    }
+
+    // 1b. Current batch takes priority (most recently uploaded = most up to date)
+    for (const patch of patchedLinks) {
+      const base = patch.fileName.replace(/\.[^/.]+$/, '').toLowerCase();
+      if (base) imageMap.set(base, patch.url);
+    }
+
+    console.log(`[apply-sync] Image map: ${imageMap.size} images available (${patchedLinks.length} from current batch)`);
+
+    if (imageMap.size === 0) {
+      return NextResponse.json(
+        { success: false, error: 'No images found in blob storage. Upload images first.' },
+        { status: 400 }
+      );
+    }
+
+    // ─── Step 2: Fetch fresh themes (bypass 60s in-memory cache) ────────────
+    invalidateThemeCache();
     const locators = await getThemeLocators();
     let themesUpdatedCount = 0;
+    let totalVersesUpdated = 0;
 
-    // Always work with fresh data during sync — bypass any in-memory cache
-    invalidateThemeCache();
-    const freshLocators = await getThemeLocators();
-
-    for (const locator of freshLocators) {
+    for (const locator of locators) {
       try {
-        // Force fresh fetch from Blob (bypass cache for sync operations)
-        const locatorCopy = { ...locator };
-        const parsed = await fetchThemeContent(locatorCopy);
+        const parsed = await fetchThemeContent(locator);
         if (!parsed || !Array.isArray(parsed.verses)) continue;
 
         let themeWasUpdated = false;
 
         for (const verse of parsed.verses) {
-          // Only process verses that have a verseimagelink field (even if it's just a filename)
           if (!verse.verseimagelink) continue;
 
-          // Get just the filename part from the existing link (strip any path or old URL)
-          const existingLink = verse.verseimagelink as string;
-          const existingFileName = existingLink.split('/').pop() || existingLink;
-          // Strip extension for comparison
-          const existingBase = existingFileName.replace(/\.[^/.]+$/, '').toLowerCase();
+          // Extract just the filename from whatever format is stored:
+          // "Love/Love_60_image_1.png"  → "Love_60_image_1.png"
+          // "https://.../images/Love_60_image_1.webp" → "Love_60_image_1.webp"
+          // "Love_60_image_1.png"       → "Love_60_image_1.png"
+          const currentLink = verse.verseimagelink as string;
+          const fileName = currentLink.split('/').pop() || currentLink;
+          const base = fileName.replace(/\.[^/.]+$/, '').toLowerCase();
 
-          // Find the uploaded image that matches this verse's image filename
-          const matchedPatch = patchedLinks.find(patch => {
-            const uploadedBase = patch.fileName.replace(/\.[^/.]+$/, '').toLowerCase();
-            // Match: uploaded "Love_1_image_1" vs existing "Love_1_image_1"
-            return uploadedBase === existingBase || existingBase.endsWith(uploadedBase) || uploadedBase.endsWith(existingBase);
-          });
+          const correctUrl = imageMap.get(base);
 
-          if (matchedPatch) {
-            verse.verseimagelink = matchedPatch.url;
+          if (correctUrl && verse.verseimagelink !== correctUrl) {
+            verse.verseimagelink = correctUrl;
             themeWasUpdated = true;
-            console.log(`[apply-sync] Matched: ${existingFileName} → ${matchedPatch.url}`);
+            totalVersesUpdated++;
+            console.log(`[apply-sync] ✓ ${base} → ${correctUrl}`);
           }
         }
 
@@ -60,25 +85,24 @@ export async function POST(req: Request) {
           await put(`themes/${locator.fileName}`, buffer, {
             access: 'public',
             contentType: 'application/json',
-            addRandomSuffix: false
+            addRandomSuffix: false,
           });
           themesUpdatedCount++;
-          console.log(`[apply-sync] Saved updated theme: ${locator.fileName}`);
-        } else {
-          console.log(`[apply-sync] No matches found in theme: ${locator.fileName}`);
+          console.log(`[apply-sync] Saved: ${locator.fileName}`);
         }
       } catch (err) {
-        console.error(`[apply-sync] Failed to patch theme ${locator.fileName}`, err);
+        console.error(`[apply-sync] Failed for ${locator.fileName}:`, err);
       }
     }
 
-    // Invalidate in-memory cache so next reads get the fresh patched JSON
+    // ─── Step 3: Invalidate cache so API serves updated data immediately ─────
     invalidateThemeCache();
 
-    return NextResponse.json({ 
-      success: true, 
-      patchedLinksCount: patchedLinks.length,
-      themesUpdatedCount 
+    return NextResponse.json({
+      success: true,
+      imagesAvailable: imageMap.size,
+      totalVersesUpdated,
+      themesUpdatedCount,
     });
 
   } catch (error: any) {

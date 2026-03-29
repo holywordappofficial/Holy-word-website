@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { UploadCloud, CheckCircle, AlertCircle, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, Image as ImageIcon, Loader2, RefreshCw } from 'lucide-react';
 
 import LogoutBtn from './components/LogoutBtn';
 
@@ -9,6 +9,7 @@ export default function AdminPage() {
   const [jsonStatus, setJsonStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error', message?: string, progress: number }>({ type: 'idle', progress: 0 });
   const [imgStatus, setImgStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error', message?: string, url?: string, progress: number }>({ type: 'idle', progress: 0 });
   const [bulkStatus, setBulkStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error', message?: string, count?: number, progress: number }>({ type: 'idle', progress: 0 });
+  const [syncStatus, setSyncStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error', message?: string }>({ type: 'idle' });
 
   const uploadWithProgress = (url: string, formData: FormData, onProgress: (pct: number) => void): Promise<any> => {
     return new Promise((resolve, reject) => {
@@ -193,6 +194,28 @@ export default function AdminPage() {
     }
   };
 
+  const handleSyncOnly = async () => {
+    setSyncStatus({ type: 'loading' });
+    try {
+      const res = await fetch('/api/admin/images/apply-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patchedLinks: [] }), // empty = scan all images in Blob
+      });
+      const result = await res.json();
+      if (result.success) {
+        setSyncStatus({
+          type: 'success',
+          message: `Synced! ${result.totalVersesUpdated} verse links updated across ${result.themesUpdatedCount} themes (${result.imagesAvailable} images in Blob).`,
+        });
+      } else {
+        setSyncStatus({ type: 'error', message: result.error || 'Sync failed' });
+      }
+    } catch (err: any) {
+      setSyncStatus({ type: 'error', message: err.message || 'Network error' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-neutral-900 text-white p-8 font-sans">
       <div className="max-w-4xl mx-auto space-y-12">
@@ -372,6 +395,57 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+
+        {/* ─── Sync Only Card ─── */}
+        <div className="bg-neutral-800 border border-neutral-700 rounded-2xl p-6 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 shrink-0">
+                <RefreshCw className="text-violet-400" size={24} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Re-Sync All Links</h2>
+                <p className="text-sm text-neutral-400 mt-1">
+                  Already uploaded images? Click to update <code className="bg-neutral-900 px-1 rounded text-violet-300">verseimagelink</code> in all
+                  theme JSONs — no re-upload needed.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSyncOnly}
+              disabled={syncStatus.type === 'loading'}
+              className="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+            >
+              {syncStatus.type === 'loading' ? (
+                <><Loader2 className="animate-spin" size={16} /> Syncing...</>
+              ) : (
+                <><RefreshCw size={16} /> Sync Now</>
+              )}
+            </button>
+          </div>
+
+          {syncStatus.type !== 'idle' && (
+            <div className="mt-4 pt-4 border-t border-neutral-700">
+              {syncStatus.type === 'loading' && (
+                <p className="text-sm text-violet-400 animate-pulse">Scanning Blob storage and updating all theme JSONs...</p>
+              )}
+              {syncStatus.type === 'success' && (
+                <div className="flex items-start gap-2 text-sm text-green-400">
+                  <CheckCircle size={16} className="shrink-0 mt-0.5" />
+                  <span>{syncStatus.message}</span>
+                </div>
+              )}
+              {syncStatus.type === 'error' && (
+                <div className="flex items-start gap-2 text-sm text-red-400">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                  <span>{syncStatus.message}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
