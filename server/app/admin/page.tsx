@@ -143,21 +143,14 @@ export default function AdminPage() {
 
       for (const chunk of chunks) {
         await Promise.all(chunk.map(async (file) => {
-          // 1. Compress to WebP
-          const compressedBlob = await compressToWebP(file);
-          const webpFileName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
-          
           const singleFormData = new FormData();
-          // Keep original filename or webp? We'll use webp for storage efficiency
-          singleFormData.append('file', compressedBlob, webpFileName);
+          singleFormData.append('file', file);
 
           const result = await uploadWithProgress('/api/admin/images/upload', singleFormData, (p) => {
              // We don't track per-file sub-progress in parallel for UX simplicity
           });
 
           if (result.success) {
-            // Very important: the bulk-sync uses the ORIGINAL filename to match JSON 
-            // but we need to pass the new Blob URL
             patchedLinks.push({ fileName: file.name, url: result.url });
             completedCount++;
             const overallProgress = Math.round((completedCount / total) * 100);

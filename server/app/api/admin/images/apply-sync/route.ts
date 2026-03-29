@@ -58,25 +58,42 @@ export async function POST(req: Request) {
         if (!parsed || !Array.isArray(parsed.verses)) continue;
 
         let themeWasUpdated = false;
+        let themeVersesUpdated = 0;
+        const themeName = (parsed.theme || parsed.themeInfo?.theme || '').toLowerCase();
 
         for (const verse of parsed.verses) {
-          if (!verse.verseimagelink) continue;
+          let matchFound = false;
+          const verseId = String(verse.id || verse.verseNumber || '');
 
-          // Extract just the filename from whatever format is stored:
-          // "Love/Love_60_image_1.png"  → "Love_60_image_1.png"
-          // "https://.../images/Love_60_image_1.webp" → "Love_60_image_1.webp"
-          // "Love_60_image_1.png"       → "Love_60_image_1.png"
-          const currentLink = verse.verseimagelink as string;
-          const fileName = currentLink.split('/').pop() || currentLink;
-          const base = fileName.replace(/\.[^/.]+$/, '').toLowerCase();
+          // 1. Try matching using current verseimagelink if it exists
+          if (verse.verseimagelink) {
+            const currentLink = verse.verseimagelink as string;
+            const fileName = currentLink.split('/').pop() || currentLink;
+            const base = fileName.replace(/\.[^/.]+$/, '').toLowerCase();
+            const correctUrl = imageMap.get(base);
 
-          const correctUrl = imageMap.get(base);
+            if (correctUrl && verse.verseimagelink !== correctUrl) {
+              verse.verseimagelink = correctUrl;
+              matchFound = true;
+            }
+          }
 
-          if (correctUrl && verse.verseimagelink !== correctUrl) {
-            verse.verseimagelink = correctUrl;
+          // 2. If no match yet (or link was empty), try matching by Verse ID
+          if (!matchFound && verseId && themeName) {
+            // Find any blob filename that contains both theme and ID
+            for (const [blobBase, blobUrl] of imageMap.entries()) {
+              const lowerBlobBase = blobBase.toLowerCase();
+              if (lowerBlobBase.includes(themeName) && lowerBlobBase.includes(verseId.toLowerCase())) {
+                verse.verseimagelink = blobUrl;
+                matchFound = true;
+                break;
+              }
+            }
+          }
+
+          if (matchFound) {
+            themeVersesUpdated++;
             themeWasUpdated = true;
-            totalVersesUpdated++;
-            console.log(`[apply-sync] ✓ ${base} → ${correctUrl}`);
           }
         }
 
@@ -88,7 +105,8 @@ export async function POST(req: Request) {
             addRandomSuffix: false,
           });
           themesUpdatedCount++;
-          console.log(`[apply-sync] Saved: ${locator.fileName}`);
+          totalVersesUpdated += themeVersesUpdated;
+          console.log(`[apply-sync] ✓ Saved: ${locator.fileName} (${themeVersesUpdated} verses fixed)`);
         }
       } catch (err) {
         console.error(`[apply-sync] Failed for ${locator.fileName}:`, err);
