@@ -1,55 +1,135 @@
 'use client';
 
 import { useState } from 'react';
-import { uploadThemeJSON, uploadImageToBlob } from './actions';
-import { UploadCloud, CheckCircle, AlertCircle, Image as ImageIcon } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, Image as ImageIcon, Loader2 } from 'lucide-react';
+
+import LogoutBtn from './components/LogoutBtn';
 
 export default function AdminPage() {
-  const [jsonStatus, setJsonStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error', message?: string }>({ type: 'idle' });
-  const [imgStatus, setImgStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error', message?: string, url?: string }>({ type: 'idle' });
+  const [jsonStatus, setJsonStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error', message?: string, progress: number }>({ type: 'idle', progress: 0 });
+  const [imgStatus, setImgStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error', message?: string, url?: string, progress: number }>({ type: 'idle', progress: 0 });
+  const [bulkStatus, setBulkStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error', message?: string, count?: number, progress: number }>({ type: 'idle', progress: 0 });
+
+  const uploadWithProgress = (url: string, formData: FormData, onProgress: (pct: number) => void): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          try {
+            reject(JSON.parse(xhr.responseText));
+          } catch {
+            reject({ error: 'Upload failed' });
+          }
+        }
+      };
+
+      xhr.onerror = () => reject({ error: 'Network error' });
+      xhr.send(formData);
+    });
+  };
 
   const handleJsonUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setJsonStatus({ type: 'loading' });
+    setJsonStatus({ type: 'loading', progress: 0 });
     const formData = new FormData(e.currentTarget);
+    const file = formData.get('file') as File;
+
+    if (file && !file.name.endsWith('.json')) {
+      setJsonStatus({ type: 'error', message: 'Please select a valid .json file', progress: 0 });
+      return;
+    }
     
     try {
-      const result = await uploadThemeJSON(formData);
+      const result = await uploadWithProgress('/api/admin/themes/upload', formData, (progress) => {
+        setJsonStatus(prev => ({ ...prev, progress }));
+      });
+
       if (result.success) {
-        setJsonStatus({ type: 'success', message: result.message });
+        setJsonStatus({ type: 'success', message: result.message, progress: 100 });
         (e.target as HTMLFormElement).reset();
       } else {
-        setJsonStatus({ type: 'error', message: result.error });
+        setJsonStatus({ type: 'error', message: result.error, progress: 0 });
       }
-    } catch {
-      setJsonStatus({ type: 'error', message: 'Unknown error occurred' });
+    } catch (err: any) {
+      setJsonStatus({ type: 'error', message: err.error || 'Unknown error occurred', progress: 0 });
     }
   };
 
   const handleImageUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setImgStatus({ type: 'loading' });
+    setImgStatus({ type: 'loading', progress: 0 });
     const formData = new FormData(e.currentTarget);
+    const file = formData.get('file') as File;
+
+    if (file && !file.type.startsWith('image/')) {
+      setImgStatus({ type: 'error', message: 'Please select a valid image file', progress: 0 });
+      return;
+    }
     
     try {
-      const result = await uploadImageToBlob(formData);
+      const result = await uploadWithProgress('/api/admin/images/upload', formData, (progress) => {
+        setImgStatus(prev => ({ ...prev, progress }));
+      });
+
       if (result.success) {
-        setImgStatus({ type: 'success', message: 'Image uploaded successfully!', url: result.url });
+        setImgStatus({ type: 'success', message: 'Image uploaded successfully!', url: result.url, progress: 100 });
         (e.target as HTMLFormElement).reset();
       } else {
-        setImgStatus({ type: 'error', message: result.error });
+        setImgStatus({ type: 'error', message: result.error, progress: 0 });
       }
-    } catch {
-      setImgStatus({ type: 'error', message: 'Unknown error occurred' });
+    } catch (err: any) {
+      setImgStatus({ type: 'error', message: err.error || 'Unknown error occurred', progress: 0 });
+    }
+  };
+
+  const handleBulkUpload = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setBulkStatus({ type: 'loading', progress: 0 });
+    const formData = new FormData(e.currentTarget);
+    const files = formData.getAll('files') as File[];
+
+    const invalidFiles = files.filter(f => !f.type.startsWith('image/'));
+    if (invalidFiles.length > 0) {
+      setBulkStatus({ type: 'error', message: `Found ${invalidFiles.length} invalid file(s). Only images allowed.`, progress: 0 });
+      return;
+    }
+    
+    try {
+      const result = await uploadWithProgress('/api/admin/images/bulk-sync', formData, (progress) => {
+        setBulkStatus(prev => ({ ...prev, progress }));
+      });
+
+      if (result.success) {
+        setBulkStatus({ type: 'success', message: 'Bulk update successful!', count: result.count, progress: 100 });
+        (e.target as HTMLFormElement).reset();
+      } else {
+        setBulkStatus({ type: 'error', message: result.error, progress: 0 });
+      }
+    } catch (err: any) {
+      setBulkStatus({ type: 'error', message: err.error || 'Unknown error occurred', progress: 0 });
     }
   };
 
   return (
     <div className="min-h-screen bg-neutral-900 text-white p-8 font-sans">
       <div className="max-w-4xl mx-auto space-y-12">
-        <div>
-          <h1 className="text-4xl font-extrabold tracking-tight">Holy Word Studio Admin</h1>
-          <p className="text-neutral-400 mt-2">Manage Themes and Images for your mobile app API.</p>
+        <div className="flex flex-col md:flex-row md:items-end justify-between items-start gap-4">
+          <div>
+            <h1 className="text-4xl font-extrabold tracking-tight">Holy Canvas Admin</h1>
+            <p className="text-neutral-400 mt-2">Manage Themes and Images for your mobile app API.</p>
+          </div>
+          <LogoutBtn />
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">
@@ -80,11 +160,22 @@ export default function AdminPage() {
               <button 
                 disabled={jsonStatus.type === 'loading'}
                 type="submit" 
-                className="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                className="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {jsonStatus.type === 'loading' ? 'Uploading...' : 'Save Theme'}
+                {jsonStatus.type === 'loading' ? (
+                  <><Loader2 className="animate-spin" size={18} /> Uploading {jsonStatus.progress}%</>
+                ) : 'Save Theme'}
               </button>
             </form>
+
+            {jsonStatus.type === 'loading' && (
+              <div className="mt-4 h-1.5 w-full bg-neutral-900 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-indigo-500 transition-all duration-300 ease-out"
+                  style={{ width: `${jsonStatus.progress}%` }}
+                />
+              </div>
+            )}
 
             <div className="mt-4">
               {jsonStatus.type === 'success' && <div className="text-green-400 flex items-center gap-2 text-sm"><CheckCircle size={16} /> {jsonStatus.message}</div>}
@@ -119,11 +210,22 @@ export default function AdminPage() {
               <button 
                 disabled={imgStatus.type === 'loading'}
                 type="submit" 
-                className="w-full py-2 px-4 bg-pink-600 hover:bg-pink-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                className="w-full py-2 px-4 bg-pink-600 hover:bg-pink-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {imgStatus.type === 'loading' ? 'Uploading...' : 'Upload Image'}
+                {imgStatus.type === 'loading' ? (
+                  <><Loader2 className="animate-spin" size={18} /> Uploading {imgStatus.progress}%</>
+                ) : 'Upload Image'}
               </button>
             </form>
+
+            {imgStatus.type === 'loading' && (
+              <div className="mt-4 h-1.5 w-full bg-neutral-900 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-pink-500 transition-all duration-300 ease-out"
+                  style={{ width: `${imgStatus.progress}%` }}
+                />
+              </div>
+            )}
 
             <div className="mt-4">
               {imgStatus.type === 'success' && (
@@ -135,6 +237,66 @@ export default function AdminPage() {
                 </div>
               )}
               {imgStatus.type === 'error' && <div className="text-red-400 flex items-center gap-2 text-sm"><AlertCircle size={16} /> {imgStatus.message}</div>}
+            </div>
+          </div>
+          
+          {/* Bulk Image Upload & SYNC */}
+          <div className="bg-neutral-800 p-6 rounded-2xl border border-neutral-700 shadow-xl md:col-span-2">
+            <div className="flex items-center gap-3 mb-6">
+              <UploadCloud className="text-emerald-400" size={28} />
+              <h2 className="text-xl font-bold">3. Auto-Sync Bulk Images</h2>
+            </div>
+            
+            <p className="text-sm text-neutral-400 mb-6">
+              Upload multiple images at once. The system will automatically upload them to Vercel string, read all your JSON files, match the filename, and update the <code className="bg-neutral-900 px-1 py-0.5 rounded text-emerald-300">verseimagelink</code> for you permanently!
+            </p>
+
+            <form onSubmit={handleBulkUpload} className="space-y-4">
+              <input 
+                type="file" 
+                name="files" 
+                accept="image/*" 
+                multiple
+                required 
+                className="block w-full text-sm text-neutral-400
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-full file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-emerald-500/10 file:text-emerald-400
+                  hover:file:bg-emerald-500/20 file:cursor-pointer"
+              />
+              <button 
+                disabled={bulkStatus.type === 'loading'}
+                type="submit" 
+                className="w-full py-2 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {bulkStatus.type === 'loading' ? (
+                  <><Loader2 className="animate-spin" size={18} /> {bulkStatus.progress === 100 ? 'Processing...' : `Uploading ${bulkStatus.progress}%`}</>
+                ) : 'Bulk Upload & Fix JSON'}
+              </button>
+            </form>
+
+            {bulkStatus.type === 'loading' && (
+              <div className="mt-4 space-y-2">
+                <div className="h-1.5 w-full bg-neutral-900 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500 transition-all duration-300 ease-out"
+                    style={{ width: `${bulkStatus.progress}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest text-center">
+                  {bulkStatus.progress === 100 ? 'Syncing with JSON files...' : 'Transferring data to server...'}
+                </p>
+              </div>
+            )}
+
+            <div className="mt-4">
+              {bulkStatus.type === 'success' && (
+                <div className="text-green-400 flex items-center gap-2 text-sm">
+                  <CheckCircle size={16} /> Successfully synchronized {bulkStatus.count} images to JSON files!
+                </div>
+              )}
+              {bulkStatus.type === 'error' && <div className="text-red-400 flex items-center gap-2 text-sm"><AlertCircle size={16} /> {bulkStatus.message}</div>}
             </div>
           </div>
         </div>
