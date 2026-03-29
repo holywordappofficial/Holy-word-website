@@ -1,90 +1,36 @@
-# Holy Word API Server
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-This is the backend API server for the Holy Word application, providing Bible verses in English and Telugu.
+## Getting Started
 
-## Features
+First, run the development server:
 
-- **Daily Verse API**: Get today's Bible verse based on a fixed start date
-- **All Verses API**: Get all available Bible verses
-- **CORS Enabled**: Cross-origin requests supported
-- **Health Check**: Monitor server status
-
-## API Endpoints
-
-### GET /api/daily-verse
-Returns today's Bible verse in both English and Telugu.
-
-**Response:**
-```json
-{
-  "id": 1,
-  "english": "Jesus answered, \"I am the way and the truth and the life. No one comes to the Father except through me.\"",
-  "englishReference": "John 14:6",
-  "telugu": "యేసు–నేనే మార్గమును, సత్యమును, జీవమును; నా ద్వారానే తప్ప యెవడును తండ్రియొద్దకు రాడు.",
-  "teluguReference": "యోహాను 14:6",
-  "backgroundImage": "a straight path leading to a bright light",
-  "dayNumber": 1,
-  "totalVerses": 1000
-}
-```
-
-### GET /api/verses
-Returns all available Bible verses.
-
-**Response:**
-```json
-{
-  "totalVerses": 1000,
-  "verses": [...],
-  "usage": {
-    "dailyVerse": "/api/daily-verse",
-    "allVerses": "/api/verses",
-    "documentation": "This API provides free access to Bible verses in English and Telugu"
-  }
-}
-```
-
-### GET /health
-Health check endpoint.
-
-**Response:**
-```json
-{
-  "status": "OK",
-  "timestamp": "2025-10-21T10:52:00.000Z",
-  "versesLoaded": 1000
-}
-```
-
-## Installation
-
-```bash
-npm install
-```
-
-## Running the Server
-
-### Development
 ```bash
 npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-### Production
-```bash
-npm start
-```
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-The server will run on port 3001 by default, or the PORT environment variable.
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-## Daily Verse Logic
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-- Starts from October 20, 2025 (fixed start date)
-- Each day gets the next verse in sequence
-- When all verses are shown, it loops back to the beginning
-- Uses modulo arithmetic to ensure continuous cycling
+## Learn More
 
-## License
+To learn more about Next.js, take a look at the following resources:
 
-This API is provided for **FREE USE ONLY** - **NOT FOR COMMERCIAL USE**
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-As it is written: "Freely you have received; freely give." - Matthew 10:8
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
