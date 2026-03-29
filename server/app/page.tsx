@@ -18,8 +18,8 @@ export default function Home() {
             Holy Canvas API
           </h1>
           
-          <p className="text-xl md:text-2xl text-neutral-400 max-w-2xl mx-auto leading-relaxed font-light animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-            The premium backend engine powering dynamic daily verses, custom themes, and divine inspiration for your digital sanctuary.
+          <p className="text-xl md:text-2xl text-neutral-400 max-w-4xl mx-auto leading-relaxed font-light animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+            The specialized high-performance REST API powering dynamic sacred themes, bilingual verses, and divine imagery for the Holy Canvas application suite.
           </p>
         </div>
 
